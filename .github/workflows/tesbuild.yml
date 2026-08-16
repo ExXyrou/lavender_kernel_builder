@@ -20,7 +20,7 @@ on:
         type: string
 
       GH_TOKEN:
-        description: '🔑 GitHub Access Token (required for the "custom" or "snx" source)'
+        description: '🔑 GitHub Access Token (required for the "snx")'
         required: false
         type: string
 
@@ -46,7 +46,7 @@ on:
         type: string
 
       LOCALVERSION:
-        description: '🏷️ Kernel name suffix (e.g. -MyKernel-v1.0)'
+        description: '🏷️ Kernel name (e.g. -MyKernel-v1.0)'
         required: false
         type: string
 
