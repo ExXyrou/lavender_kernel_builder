@@ -230,7 +230,7 @@ jobs:
             "${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
-            --data-urlencode chat_id="-1003150231958" \
+            --data-urlencode chat_id="-100432497445" \
             --data-urlencode parse_mode="HTML" \
             --data-urlencode text="$MESSAGE" \
             --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
@@ -489,10 +489,14 @@ jobs:
         run: |
           set -o pipefail
           
+          export KCFLAGS="-Wno-address -Wno-implicit-function-declaration"
+          
           if [ "${{ inputs.KERNEL_SOURCE }}" == "snx" ]; then
             echo "🧹 Cleaning up unsupported Polly flags for SNX source..."
             find . -name "Makefile*" -o -name "*.mk" | xargs sed -i 's/-mllvm -polly-opt-fusion=max//g'
             sed -i 's/-polly-opt-fusion=max//g' Makefile || true
+            
+            export KCFLAGS="-Wno-address -Wno-implicit-function-declaration -Wno-unknown-warning-option -Wno-strict-prototypes -Wno-unused-value"
           fi
 
           export PATH="/usr/lib/ccache:$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
@@ -505,10 +509,8 @@ jobs:
           export KBUILD_BUILD_USER="${{ inputs.BUILD_USER }}"
           export KBUILD_BUILD_HOST="${{ inputs.BUILD_HOST }}"
 
-          export KCFLAGS="-Wno-address -Wno-implicit-function-declaration"
-
           echo "========================================"
-          echo "            COMPILING KERNEL...         "
+          echo "             COMPILING KERNEL...        "
           echo "========================================"
 
           make -j$(nproc --all) \
@@ -631,7 +633,7 @@ jobs:
             "${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
-            --data-urlencode chat_id="-1003150231958" \
+            --data-urlencode chat_id="-100432497445" \
             --data-urlencode parse_mode="HTML" \
             --data-urlencode text="$MESSAGE" \
             --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"},{\"text\":\"⬇️ Download Release\",\"url\":\"$RELEASE_URL\"}]]}"
@@ -654,7 +656,7 @@ jobs:
             "${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
-            --data-urlencode chat_id="-1003150231958" \
+            --data-urlencode chat_id="-100432497445" \
             --data-urlencode parse_mode="HTML" \
             --data-urlencode text="$MESSAGE" \
             --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
