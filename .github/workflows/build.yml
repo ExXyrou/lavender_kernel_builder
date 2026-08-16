@@ -24,7 +24,7 @@ on:
         type: string
 
       KERNEL_BRANCH:
-        description: '🌿 Select Kernel Branch'
+        description: '🌿 Select Kernel Branch (Ignored for "san" or "predator-strombreaker")'
         required: true
         default: 'custom'
         type: choice
@@ -84,7 +84,7 @@ on:
           - xxKSU
 
       UBUNTU_VERSION:
-        description: '🐧 Select Ubuntu Runner Version'
+        description: '🐧 Select Ubuntu Version'
         required: true
         default: 'ubuntu-latest'
         type: choice
@@ -95,7 +95,7 @@ on:
           - ubuntu-20.04
 
       CLANG_SOURCE:
-        description: '🧰 Select Clang Toolchain (Ignored if San/Predator source is selected)'
+        description: '🧰 Select Clang Toolchain (Ignored for "san" or "predator-strombreaker")'
         required: true
         default: "custom"
         type: choice
@@ -161,44 +161,42 @@ jobs:
 
           if [[ "$KERNEL_SRC" == "san" || "$KERNEL_SRC" == "predator-strombreaker" ]]; then
             if [[ -z "$AUTH_TOKEN" ]]; then
-              echo "❌ ERROR: A GitHub Access Token (GH_TOKEN) is required when using the '$KERNEL_SRC' source!"
+              echo "❌ ERROR: A GitHub Access Token is required when using the '$KERNEL_SRC' source!"
               exit 1
             fi
           fi
 
           if [ "$KERNEL_SRC" == "predator-strombreaker" ]; then
             echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@github.com/ExXyrou/predator_strombreaker_kernel.git" >> $GITHUB_ENV
+            BRANCH_NAME="oldcam"
+            echo "✅ Override: Branch automatically set to 'oldcam' for Predator Kernel."
           elif [ "$KERNEL_SRC" == "san" ]; then
             echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@github.com/ExXyrou/san_kernel.git" >> $GITHUB_ENV
+            BRANCH_NAME="oldcam"
+            echo "✅ Override: Branch automatically set to 'oldcam' for San Kernel."
           else
             if [ -z "${{ inputs.CUSTOM_KERNEL_URL }}" ]; then
               echo "❌ ERROR: 'custom' source was selected, but CUSTOM_KERNEL_URL was left empty."
               exit 1
             fi
+            echo "FINAL_KERNEL_URL=${{ inputs.CUSTOM_KERNEL_URL }}" >> $GITHUB_ENV
 
-            if [ -n "$AUTH_TOKEN" ] && [[ "${{ inputs.CUSTOM_KERNEL_URL }}" == https://github.com/* ]]; then
-              URL_WITHOUT_HTTPS=$(echo "${{ inputs.CUSTOM_KERNEL_URL }}" | sed 's|https://||')
-              echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@${URL_WITHOUT_HTTPS}" >> $GITHUB_ENV
-            else
-              echo "FINAL_KERNEL_URL=${{ inputs.CUSTOM_KERNEL_URL }}" >> $GITHUB_ENV
-            fi
+            case "$KERNEL_BR" in
+              "custom")
+                if [ -z "${{ inputs.CUSTOM_KERNEL_BRANCH }}" ]; then
+                  echo "❌ ERROR: 'custom' branch was selected, but CUSTOM_KERNEL_BRANCH was left empty."
+                  exit 1
+                fi
+                BRANCH_NAME="${{ inputs.CUSTOM_KERNEL_BRANCH }}"
+                ;;
+              "oldcam")
+                BRANCH_NAME="oldcam"
+                ;;
+              *)
+                BRANCH_NAME="$KERNEL_BR"
+                ;;
+            esac
           fi
-
-          case "$KERNEL_BR" in
-            "custom")
-              if [ -z "${{ inputs.CUSTOM_KERNEL_BRANCH }}" ]; then
-                echo "❌ ERROR: 'custom' branch was selected, but CUSTOM_KERNEL_BRANCH was left empty."
-                exit 1
-              fi
-              BRANCH_NAME="${{ inputs.CUSTOM_KERNEL_BRANCH }}"
-              ;;
-            "oldcam")
-              BRANCH_NAME="oldcam"
-              ;;
-            *)
-              BRANCH_NAME="$KERNEL_BR"
-              ;;
-          esac
 
           echo "FINAL_KERNEL_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
           echo "✅ Successfully resolved Kernel Source URL and Branch."
@@ -265,9 +263,8 @@ jobs:
             echo "❌ ERROR: FAILED TO CLONE KERNEL SOURCE REPOSITORY!"
             echo "❌ ========================================================"
             echo "💡 Possible reasons:"
-            echo "   1. The provided 'GH_TOKEN' is invalid, expired, or lacks permissions."
-            echo "   2. The repository is private and requires a token with 'repo' scope."
-            echo "   3. The specified branch ('${{ env.FINAL_KERNEL_BRANCH }}') does not exist."
+            echo "   1. The provided 'GH_TOKEN' (PAT) is invalid or empty."
+            echo "   2. The specified branch ('${{ env.FINAL_KERNEL_BRANCH }}') does not exist."
             echo "❌ ========================================================"
             exit 1
           fi
