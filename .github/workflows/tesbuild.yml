@@ -230,7 +230,7 @@ jobs:
             "${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
-            --data-urlencode chat_id="-100432497445" \
+            --data-urlencode chat_id="-1004324974450" \
             --data-urlencode parse_mode="HTML" \
             --data-urlencode text="$MESSAGE" \
             --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
@@ -633,7 +633,7 @@ jobs:
             "${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
-            --data-urlencode chat_id="-100432497445" \
+            --data-urlencode chat_id="-1004324974450" \
             --data-urlencode parse_mode="HTML" \
             --data-urlencode text="$MESSAGE" \
             --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"},{\"text\":\"⬇️ Download Release\",\"url\":\"$RELEASE_URL\"}]]}"
@@ -656,7 +656,7 @@ jobs:
             "${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
-            --data-urlencode chat_id="-100432497445" \
+            --data-urlencode chat_id="-1004324974450" \
             --data-urlencode parse_mode="HTML" \
             --data-urlencode text="$MESSAGE" \
             --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
