@@ -150,7 +150,7 @@ jobs:
             "${{ inputs.KERNEL_BRANCH }}" \
             "${{ inputs.KERNEL_DEFCONFIG }}" \
             "${{ inputs.UBUNTU_VERSION }}" \
-            "${{ github.actor }}")
+            "@${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
             --data-urlencode chat_id="-1004324974450" \
@@ -165,18 +165,6 @@ jobs:
           CLONE_CMD="git clone --depth=1"
           if [ -n "${{ env.FINAL_KERNEL_BRANCH }}" ]; then
             CLONE_CMD="$CLONE_CMD -b ${{ env.FINAL_KERNEL_BRANCH }}"
-          fi
-          
-          if ! $CLONE_CMD "${{ env.FINAL_KERNEL_URL }}" "$KERNEL_DIR"; then
-            echo ""
-            echo "❌ ========================================================"
-            echo "❌ ERROR: FAILED TO CLONE KERNEL SOURCE REPOSITORY!"
-            echo "❌ ========================================================"
-            echo "💡 Possible reasons:"
-            echo "    1. The provided repository URL or Branch ('${{ env.FINAL_KERNEL_BRANCH }}') does not exist."
-            echo "    2. The repository is private and requires authentication."
-            echo "❌ ========================================================"
-            exit 1
           fi
 
           echo "========================================"
@@ -398,7 +386,7 @@ jobs:
             "${{ inputs.KERNEL_DEFCONFIG }}" \
             "${{ steps.img.outputs.zip_name }}" \
             "$DURATION_STR" \
-            "${{ github.actor }}")
+            "@${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
             --data-urlencode chat_id="-1004324974450" \
@@ -419,7 +407,7 @@ jobs:
             "${{ inputs.KERNEL_BRANCH }}" \
             "${{ inputs.KERNEL_DEFCONFIG }}" \
             "$DURATION_STR" \
-            "${{ github.actor }}")
+            "@${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
             --data-urlencode chat_id="-1004324974450" \
