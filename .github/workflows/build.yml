@@ -158,13 +158,15 @@ jobs:
             --data-urlencode text="$MESSAGE" \
             --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
 
-      - name: 📥 Clone Kernel Source & Verify Access
+      - name: 📥 Clone Kernel Source
         run: |
-          echo "Testing repository access and cloning..."
-          
-          CLONE_CMD="git clone --depth=1"
+          echo "🔄 Cloning kernel source repository..."
+          rm -rf "${{ env.KERNEL_DIR }}"
+
           if [ -n "${{ env.FINAL_KERNEL_BRANCH }}" ]; then
-            CLONE_CMD="$CLONE_CMD -b ${{ env.FINAL_KERNEL_BRANCH }}"
+            git clone --depth=1 -b "${{ env.FINAL_KERNEL_BRANCH }}" "${{ env.FINAL_KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
+          else
+            git clone --depth=1 "${{ env.FINAL_KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
           fi
 
           echo "========================================"
