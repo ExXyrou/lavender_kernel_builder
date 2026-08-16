@@ -19,7 +19,7 @@ on:
         type: string
 
       GH_TOKEN:
-        description: '🔑 GitHub Access Token (Required for private repositories like "san" or "predator-strombreaker")'
+        description: '🔑 GitHub Access Token (Required if source is "san" or "predator-strombreaker")'
         required: false
         type: string
 
@@ -43,7 +43,7 @@ on:
         type: string
 
       LOCALVERSION:
-        description: '🏷️ Custom Kernel Name/Suffix (e.g., -MyKernel-v1.0)'
+        description: '🏷️ Custom Kernel Name(e.g., -MyKernel-v1.0)'
         required: false
         type: string
 
