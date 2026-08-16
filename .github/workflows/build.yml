@@ -172,7 +172,7 @@ jobs:
           echo "========================================"
           echo "         KERNEL SOURCE DETAILS          "
           echo "========================================"
-          git -C "$KERNEL_DIR" log -1 --oneline
+          git -C "${{ env.KERNEL_DIR }}" log -1 --oneline
           echo "========================================"
 
       - name: 🧰 Restore Clang Toolchain Cache
@@ -215,6 +215,14 @@ jobs:
             sed -i \
               's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' \
               scripts/dtc/dtc-lexer.lex.c_shipped
+          fi
+
+      - name: 🩹 Fix Scheduler Compilation Error
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          if [ -f kernel/sched/sched.h ]; then
+            sed -i 's/cpu_rq(cpu)->cfs->cumulative_runnable_avg/cpu_rq(cpu)->cfs.cumulative_runnable_avg/g' kernel/sched/sched.h
+            echo "✅ Successfully patched cumulative_runnable_avg reference."
           fi
 
       - name: ⚙️ Generate Kernel Configuration (Defconfig)
