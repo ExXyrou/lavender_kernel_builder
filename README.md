@@ -1,56 +1,58 @@
+<div align="center">
+
 # 🛠️ Lavender Kernel Builder
 
-An automated GitHub Actions workflow to build, tweak, package, and release custom Android kernels for the **Xiaomi Redmi Note 7 (`lavender`)** right inside GitHub. No local Linux PC or complex setup required!
+### 🚀 Automated Custom Linux Kernel CI for Xiaomi Redmi Note 7 (lavender)
+*Powered by GitHub Actions & AnyKernel3*
+
+</div>
 
 ---
 
-## ✨ Key Features
-
-* **Multiple Kernel Sources:** Choose from pre-configured popular sources (like *Predator-Strombreaker*, *San*, *SNX*) or link any **Custom Repository**.
-* **Built-in KernelSU Integration:** Easily inject **KernelSU** or **KernelSU Next** with a single click.
-* **Performance Profiles:** Toggle between **EAS** (Energy Aware Scheduling) or **HMP** architectures, with **Extreme** modes for maximum speed and responsiveness.
-* **Automatic Toolchain Handling:** Supports custom Clang downloads or **Neutron Clang** via Antman.
-* **Flashable Zip Packaging:** Automatically packs your compiled kernel image into an **AnyKernel3** flashable zip ready to flash via TWRP/OrangeFox.
-* **Auto-Release:** Instantly publishes the build as a GitHub Release complete with upload artifacts and custom release tags.
+## 📖 About
+**Lavender Kernel Builder** adalah workflow GitHub Actions otomatis yang dirancang khusus untuk mengkompilasi kernel custom perangkat **Xiaomi Redmi Note 7 (`lavender`)**. Workflow ini mendukung berbagai pilihan versi Ubuntu, sistem cache kompilasi (`ccache`), fleksibilitas pemilihan toolchain Clang (Custom atau Neutron), serta integrasi notifikasi real-time via Telegram.
 
 ---
 
-## 📌 Important Notes Before You Build
+## ⚙️ Workflow Inputs & Parameters
 
-* **KernelSU Next Requirement:** If you choose **KernelSU Next** in the injection options, you **must** use a kernel source that has already been manually hooked/prepared for KernelSU Next.
-* **Accessing the `snx` Source:** Because the `snx` repository is private, you need to request access or make a small support donation of **5,000 IDR** to the developer tools. To donate and get access, contact the developer on Telegram at **@exxyrou**.
+Saat Anda menjalankan workflow ini secara manual (*workflow_dispatch*), Anda dapat mengatur parameter berikut:
 
----
-
-## 🚀 How to Use
-
-1. Fork or upload this workflow file into your GitHub repository under `.github/workflows/kernel-builder.yml`.
-2. Go to your repository's **Actions** tab on GitHub.
-3. Select the **Lavender Kernel Builder** workflow from the left sidebar.
-4. Click **Run workflow** and configure your preferred inputs:
-* **Kernel Source & Branch:** Choose your desired source and branch. *(Note: If using a private repository like `snx`, make sure you have access and provide your personal access token in `GH_TOKEN`).*
-* **Defconfig Name:** Enter your kernel's config file name (e.g., `lavender_defconfig`).
-* **Performance Profile:** Pick between standard or extreme EAS/HMP tweaks.
-* **KernelSU:** Select whether to include KernelSU variants or leave it as `none`.
-
-
-5. Click the green **Run workflow** button and watch the compilation live! Once finished, grab your flashable zip from the **Releases** page.
+| Parameter | Tipe | Wajib? | Deskripsi / Contoh |
+| :--- | :--- | :---: | :--- |
+| `KERNEL_SOURCE` | String | **Ya** | URL Repository Kernel (Contoh: `https://github.com/user/kernel_xiaomi_lavender`) |
+| `KERNEL_BRANCH` | String | **Ya** | Nama Branch Kernel (Default: `main`) |
+| `KERNEL_DEFCONFIG` | String | **Ya** | Nama Defconfig target (Contoh: `lavender_defconfig`) |
+| `LOCALVERSION` | String | Tidak | Nama Suffix Kernel (Contoh: `-MyKernel-v1.0`) |
+| `DEFAULT_HOSTNAME` | String | **Ya** | Hostname bawaan kernel (Contoh: `xiaomi@redmi`) |
+| `BUILD_USER` | String | **Ya** | Usernamepembuat build (Contoh: `xiaomi`) |
+| `BUILD_HOST` | String | **Ya** | Hostname mesin build (Contoh: `redmi`) |
+| `UBUNTU_VERSION` | Choice | **Ya** | Versi Runner Ubuntu (`ubuntu-latest`, `ubuntu-24.04`, `ubuntu-22.04`, `ubuntu-20.04`) |
+| `CLANG_SOURCE` | Choice | **Ya** | Sumber Toolchain Clang (`custom` atau `neutron`) |
+| `CUSTOM_CLANG_URL` | String | Kondisional | URL Unduhan / Git Clang kustom (Wajib diisi jika `CLANG_SOURCE` dipilih `custom`) |
 
 ---
 
-## 📋 Inputs Configuration Reference
+## 🚀 Key Features
 
-| Input Parameter | Description | Default |
-| --- | --- | --- |
-| `KERNEL_SOURCE` | Select your kernel repository source. | `custom` |
-| `CUSTOM_KERNEL_URL` | Git repository URL when using the `custom` source. | *None* |
-| `GH_TOKEN` | GitHub Access Token for private source access (required for `snx`). | *None* |
-| `KERNEL_BRANCH` | Branch to clone from the kernel repository. | `custom` |
-| `KERNEL_DEFCONFIG` | Target defconfig file name for compilation. | *Required* |
-| `LOCALVERSION` | Custom suffix added to your kernel version name. | *None* |
-| `DEFAULT_HOSTNAME` | Hostname set inside the kernel configuration. | *Required* |
-| `BUILD_USER` & `BUILD_HOST` | Custom builder username and machine name tags. | *Required* |
-| `KERNEL_TWEAK` | Select a pre-configured performance profile. | `none` |
-| `INJECT_KSU` | Choose a KernelSU integration option. | `none` |
-| `UBUNTU_VERSION` | GitHub runner Ubuntu environment version. | `ubuntu-latest` |
-| `CLANG_SOURCE` | Choose between `neutron` toolchain or a `custom` URL. | `custom` |
+*   **⚡ Smart Caching:** Menggunakan `ccache` dan caching folder Clang untuk mempercepat waktu kompilasi pada build berikutnya.
+*   **🛠️ Error Patches:** Otomatis memperbaiki error umum pada kompiler modern seperti *DTC & Lexer Compilation Errors* pada kernel versi lama.
+*   **📦 Flashable ZIP Integration:** Otomatis membungkus hasil kompilasi (`Image.gz-dtb` / `Image`) ke dalam format ZIP siap-flash menggunakan **AnyKernel3**.
+*   **📢 Telegram Notifications:** Mengirimkan pesan status (Build Started, Success, Failed) lengkap dengan durasi build, tombol log, dan tautan unduhan rilis.
+*   **🏷️ Automatic Release:** Berhasil mempublikasikan file ZIP ke *GitHub Releases* secara otomatis setelah build sukses.
+
+---
+
+## 💡 How to Use
+
+1. Masuk ke tab **Actions** di repository GitHub Anda.
+2. Pilih workflow **🛠️ Lavender Kernel Builder** pada panel sebelah kiri.
+3. Klik tombol **Run workflow** di sebelah kanan atas.
+4. Isi parameter yang diperlukan (URL Source, Branch, Defconfig, Toolchain, dll).
+5. Klik **Run workflow** dan pantau proses kompilasi secara *real-time*.
+6. Unduh file ZIP melalui menu **Releases** atau *Artifacts* setelah build selesai.
+
+---
+
+> [!NOTE]
+> Pastikan repository Anda memiliki izin akses *Actions* (`Read and write permissions`) agar script dapat mempublikasikan rilis secara otomatis.
