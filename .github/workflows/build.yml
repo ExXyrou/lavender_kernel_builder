@@ -4,37 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       KERNEL_SOURCE:
-        description: '🔗 Select Kernel Source'
+        description: '🔗 Custom Kernel Repository URL'
         required: true
-        default: 'custom'
-        type: choice
-        options:
-          - custom
-          - predator-strombreaker
-          - san
-
-      CUSTOM_KERNEL_URL:
-        description: '🔗 Custom Kernel Repository URL (Required if source is "custom")'
-        required: false
-        type: string
-
-      GH_TOKEN:
-        description: '🔑 GitHub Access Token (Required if using "san" or "predator-strombreaker")'
-        required: false
         type: string
 
       KERNEL_BRANCH:
-        description: '🌿 Select Kernel Branch (Ignored for "san" or "predator-strombreaker")'
+        description: '🌿 Custom Branch Name'
         required: true
-        default: 'custom'
-        type: choice
-        options:
-          - custom
-          - oldcam
-
-      CUSTOM_KERNEL_BRANCH:
-        description: '🌿 Custom Branch Name (Required if branch is "custom")'
-        required: false
+        default: 'main'
         type: string
 
       KERNEL_DEFCONFIG:
@@ -62,27 +39,6 @@ on:
         required: true
         type: string
 
-      KERNEL_TWEAK:
-        description: '🚀 Select Performance Profile'
-        required: true
-        default: 'none'
-        type: choice
-        options:
-          - none
-          - eas
-          - eas-extreme
-          - hmp
-          - hmp-extreme
-
-      INJECT_KSU:
-        description: '🦊 Select KernelSU Integration'
-        required: true
-        default: 'none'
-        type: choice
-        options:
-          - none
-          - xxKSU
-
       UBUNTU_VERSION:
         description: '🐧 Select Ubuntu Version'
         required: true
@@ -95,9 +51,9 @@ on:
           - ubuntu-20.04
 
       CLANG_SOURCE:
-        description: '🧰 Select Clang Toolchain (Ignored for "san" or "predator-strombreaker")'
+        description: '🧰 Select Clang Toolchain Source'
         required: true
-        default: "custom"
+        default: 'custom'
         type: choice
         options:
           - custom
@@ -155,90 +111,44 @@ jobs:
       - name: 🔗 Resolve Kernel Source URL & Branch
         id: resolve-url-branch
         run: |
-          AUTH_TOKEN="${{ inputs.GH_TOKEN }}"
-          KERNEL_SRC="${{ inputs.KERNEL_SOURCE }}"
-          KERNEL_BR="${{ inputs.KERNEL_BRANCH }}"
-
-          if [[ "$KERNEL_SRC" == "san" || "$KERNEL_SRC" == "predator-strombreaker" ]]; then
-            if [[ -z "$AUTH_TOKEN" ]]; then
-              echo "❌ ERROR: A GitHub Access Token is required when using the '$KERNEL_SRC' source!"
-              exit 1
-            fi
+          if [ -z "${{ inputs.KERNEL_SOURCE }}" ]; then
+            echo "❌ ERROR: KERNEL_SOURCE URL was left empty."
+            exit 1
           fi
+          echo "FINAL_KERNEL_URL=${{ inputs.KERNEL_SOURCE }}" >> $GITHUB_ENV
 
-          if [ "$KERNEL_SRC" == "predator-strombreaker" ]; then
-            echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@github.com/ExXyrou/predator_strombreaker_kernel.git" >> $GITHUB_ENV
-            BRANCH_NAME="oldcam"
-            echo "✅ Override: Branch automatically set to 'oldcam' for Predator Kernel."
-          elif [ "$KERNEL_SRC" == "san" ]; then
-            echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@github.com/ExXyrou/san_kernel.git" >> $GITHUB_ENV
-            BRANCH_NAME="oldcam"
-            echo "✅ Override: Branch automatically set to 'oldcam' for San Kernel."
-          else
-            if [ -z "${{ inputs.CUSTOM_KERNEL_URL }}" ]; then
-              echo "❌ ERROR: 'custom' source was selected, but CUSTOM_KERNEL_URL was left empty."
-              exit 1
-            fi
-            echo "FINAL_KERNEL_URL=${{ inputs.CUSTOM_KERNEL_URL }}" >> $GITHUB_ENV
-
-            case "$KERNEL_BR" in
-              "custom")
-                if [ -z "${{ inputs.CUSTOM_KERNEL_BRANCH }}" ]; then
-                  echo "❌ ERROR: 'custom' branch was selected, but CUSTOM_KERNEL_BRANCH was left empty."
-                  exit 1
-                fi
-                BRANCH_NAME="${{ inputs.CUSTOM_KERNEL_BRANCH }}"
-                ;;
-              "oldcam")
-                BRANCH_NAME="oldcam"
-                ;;
-              *)
-                BRANCH_NAME="$KERNEL_BR"
-                ;;
-            esac
+          if [ -z "${{ inputs.KERNEL_BRANCH }}" ]; then
+            echo "❌ ERROR: KERNEL_BRANCH was left empty."
+            exit 1
           fi
-
-          echo "FINAL_KERNEL_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "FINAL_KERNEL_BRANCH=${{ inputs.KERNEL_BRANCH }}" >> $GITHUB_ENV
           echo "✅ Successfully resolved Kernel Source URL and Branch."
 
       - name: 🔗 Resolve Clang Toolchain Logic
         id: resolve-clang
         run: |
-          KERNEL_SRC="${{ inputs.KERNEL_SOURCE }}"
+          USER_CLANG="${{ inputs.CLANG_SOURCE }}"
+          echo "FINAL_CLANG_SOURCE=$USER_CLANG" >> $GITHUB_ENV
           
-          if [ "$KERNEL_SRC" == "san" ]; then
-            echo "FINAL_CLANG_SOURCE=neutron" >> $GITHUB_ENV
-            echo "✅ Override: Neutron Clang automatically selected for San Kernel."
-          elif [ "$KERNEL_SRC" == "predator-strombreaker" ]; then
-            echo "FINAL_CLANG_SOURCE=custom" >> $GITHUB_ENV
-            echo "FINAL_CLANG_URL=https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/android11-release/clang-r383902.tar.gz" >> $GITHUB_ENV
-            echo "✅ Override: Custom Clang (clang-r383902) automatically selected for Predator Kernel."
-          else
-            USER_CLANG="${{ inputs.CLANG_SOURCE }}"
-            echo "FINAL_CLANG_SOURCE=$USER_CLANG" >> $GITHUB_ENV
-            
-            if [ "$USER_CLANG" == "custom" ]; then
-              if [ -z "${{ inputs.CUSTOM_CLANG_URL }}" ]; then
-                echo "❌ ERROR: You selected 'custom' Clang, but the CUSTOM_CLANG_URL is empty!"
-                exit 1
-              fi
-              echo "FINAL_CLANG_URL=${{ inputs.CUSTOM_CLANG_URL }}" >> $GITHUB_ENV
-              echo "✅ Using user-provided Custom Clang URL."
-            else
-              echo "✅ Using user-selected Neutron Clang."
+          if [ "$USER_CLANG" == "custom" ]; then
+            if [ -z "${{ inputs.CUSTOM_CLANG_URL }}" ]; then
+              echo "❌ ERROR: You selected 'custom' Clang, but the CUSTOM_CLANG_URL is empty!"
+              exit 1
             fi
+            echo "FINAL_CLANG_URL=${{ inputs.CUSTOM_CLANG_URL }}" >> $GITHUB_ENV
+            echo "✅ Using user-provided Custom Clang URL."
+          else
+            echo "✅ Using user-selected Neutron Clang."
           fi
 
       - name: 📢 Notify Telegram - Build Started
         run: |
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          MESSAGE=$(printf '🛠️ <b>LAVENDER KERNEL BUILD STARTED</b>\n━━━━━━━━━━━━━━━━━━━\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n🚀 <b>Profile:</b> %s\n🦊 <b>KSU:</b> %s\n🐧 <b>Runner:</b> %s\n👤 <b>Triggered by:</b> %s' \
+          MESSAGE=$(printf '🛠️ <b>LAVENDER KERNEL BUILD STARTED</b>\n━━━━━━━━━━━━━━━━━━━\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n🐧 <b>Runner:</b> %s\n👤 <b>Triggered by:</b> %s' \
             "${{ inputs.KERNEL_SOURCE }}" \
-            "${{ env.FINAL_KERNEL_BRANCH }}" \
+            "${{ inputs.KERNEL_BRANCH }}" \
             "${{ inputs.KERNEL_DEFCONFIG }}" \
-            "${{ inputs.KERNEL_TWEAK }}" \
-            "${{ inputs.INJECT_KSU }}" \
             "${{ inputs.UBUNTU_VERSION }}" \
             "${{ github.actor }}")
 
@@ -263,8 +173,8 @@ jobs:
             echo "❌ ERROR: FAILED TO CLONE KERNEL SOURCE REPOSITORY!"
             echo "❌ ========================================================"
             echo "💡 Possible reasons:"
-            echo "   1. The provided 'GH_TOKEN' (PAT) is invalid or empty."
-            echo "   2. The specified branch ('${{ env.FINAL_KERNEL_BRANCH }}') does not exist."
+            echo "    1. The provided repository URL or Branch ('${{ env.FINAL_KERNEL_BRANCH }}') does not exist."
+            echo "    2. The repository is private and requires authentication."
             echo "❌ ========================================================"
             exit 1
           fi
@@ -274,13 +184,6 @@ jobs:
           echo "========================================"
           git -C "$KERNEL_DIR" log -1 --oneline
           echo "========================================"
-
-      - name: 🦊 Inject KernelSU
-        if: ${{ inputs.INJECT_KSU == 'xxKSU' }}
-        working-directory: ${{ env.KERNEL_DIR }}
-        run: |
-          echo "Injecting xxKSU integration..."
-          curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
 
       - name: 🧰 Restore Clang Toolchain Cache
         id: clang-cache
@@ -337,7 +240,7 @@ jobs:
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             ${{ inputs.KERNEL_DEFCONFIG }}
 
-      - name: 📝 Apply Performance Tweaks & Kernel Configs
+      - name: 📝 Apply Custom Configurations
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
@@ -353,114 +256,6 @@ jobs:
           if [ -n "${{ inputs.LOCALVERSION }}" ]; then
             sed -i 's/CONFIG_LOCALVERSION=".*/CONFIG_LOCALVERSION="'"${{ inputs.LOCALVERSION }}"'"/' "$OUT_DIR/.config"
             if ! grep -q "CONFIG_LOCALVERSION=" "$OUT_DIR/.config"; then echo "CONFIG_LOCALVERSION=\"${{ inputs.LOCALVERSION }}\"" >> "$OUT_DIR/.config"; fi
-          fi
-
-          set_config() {
-              local cfg="$1"
-              local val="$2"
-              if [ "$val" = "y" ]; then
-                  ./scripts/config --file "$OUT_DIR/.config" --enable "$cfg"
-              elif [ "$val" = "n" ]; then
-                  ./scripts/config --file "$OUT_DIR/.config" --disable "$cfg"
-              else
-                  ./scripts/config --file "$OUT_DIR/.config" --set-val "$cfg" "$val"
-              fi
-          }
-
-          enable_config() {
-              ./scripts/config --file "$OUT_DIR/.config" --enable "$1"
-          }
-
-          disable_config() {
-              ./scripts/config --file "$OUT_DIR/.config" --disable "$1"
-          }
-
-          if [ "${{ inputs.KERNEL_TWEAK }}" == "none" ]; then
-            echo "ℹ️ Performance profile set to 'none'. Skipping optimizations."
-          else
-            echo "🔥 Applying Base Optimizations & Disabling Debugging Overhead..."
-            disable_config CONFIG_DEBUG_INFO
-            disable_config CONFIG_DEBUG_FS
-            disable_config CONFIG_KASAN
-            disable_config CONFIG_LOCKDEP
-            enable_config CONFIG_JUMP_LABEL
-
-            if [[ "${{ inputs.KERNEL_TWEAK }}" == *"-extreme" ]]; then
-              echo "🌋 Applying EXTREME Performance Profile (1000Hz, Max Optimization)..."
-              set_config CONFIG_HZ 1000
-              enable_config CONFIG_HZ_1000
-              disable_config CONFIG_HZ_300
-              disable_config CONFIG_HZ_100
-              disable_config CONFIG_DEBUG_KERNEL
-              disable_config CONFIG_FTRACE
-              disable_config CONFIG_PROFILING
-              disable_config CONFIG_SCHED_DEBUG
-              disable_config CONFIG_SLUB_DEBUG
-              disable_config CONFIG_PM_DEBUG
-
-              echo "🌋 Disabling Background Preemption & Latency Overhead..."
-              enable_config CONFIG_PREEMPT
-              disable_config CONFIG_PREEMPT_VOLUNTARY
-              disable_config CONFIG_PREEMPT_NONE
-              disable_config CONFIG_DEBUG_PREEMPT
-              disable_config CONFIG_SCHEDSTATS
-              disable_config CONFIG_SCHED_INFO
-              disable_config CONFIG_DETECT_HUNG_TASK
-              disable_config CONFIG_RCU_TRACE
-
-              disable_config CONFIG_DEBUG_RT_MUTEXES
-              disable_config CONFIG_DEBUG_SPINLOCK
-              disable_config CONFIG_DEBUG_MUTEXES
-              disable_config CONFIG_DEBUG_ATOMIC_SLEEP
-              disable_config CONFIG_DEBUG_LIST
-              disable_config CONFIG_DEBUG_PI_LIST
-              disable_config CONFIG_DEBUG_SG
-              disable_config CONFIG_DEBUG_NOTIFIERS
-
-              disable_config CONFIG_MODULE_SIG
-              disable_config CONFIG_MODULE_SIG_ALL
-              disable_config CONFIG_MODULE_SIG_FORCE
-
-              disable_config CONFIG_CC_OPTIMIZE_FOR_SIZE
-              enable_config CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
-
-              disable_config CONFIG_KALLSYMS_ALL
-            else
-              echo "⚖️ Applying STABLE/DAILY Performance Profile (300Hz)..."
-              set_config CONFIG_HZ 300
-              enable_config CONFIG_HZ_300
-              disable_config CONFIG_HZ_1000
-              disable_config CONFIG_HZ_100
-            fi
-
-            if [[ "${{ inputs.KERNEL_TWEAK }}" == "eas"* ]]; then
-              echo "⚡ Applying EAS Scheduler Configurations..."
-              enable_config CONFIG_SCHED_WALT
-              enable_config CONFIG_ENERGY_MODEL
-              enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
-              enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
-              disable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
-              disable_config CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
-              set_config CONFIG_DEFAULT_GOVERNOR schedutil
-
-            elif [[ "${{ inputs.KERNEL_TWEAK }}" == "hmp"* ]]; then
-              echo "⚡ Applying HMP Scheduler Configurations..."
-              enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
-              enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
-              disable_config CONFIG_SCHED_WALT
-              disable_config CONFIG_ENERGY_MODEL
-              disable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
-              disable_config CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
-              set_config CONFIG_DEFAULT_GOVERNOR interactive
-            fi
-          fi
-
-          if [ "${{ inputs.INJECT_KSU }}" == "xxKSU" ]; then
-            echo "Configuring xxKSU Build Options..."
-            enable_config CONFIG_KSU
-            enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
-            echo "Enabling CONFIG_OVERLAY_FS for KernelSU support..."
-            enable_config CONFIG_OVERLAY_FS
           fi
 
           make \
@@ -583,8 +378,6 @@ jobs:
           body: |
             ### 📱 Redmi Note 7 Kernel Build
             - **Kernel Version:** 4.4${{ inputs.LOCALVERSION }}
-            - **Performance Profile:** ${{ inputs.KERNEL_TWEAK }}
-            - **KernelSU Variant:** ${{ inputs.INJECT_KSU }}
             - **Build Date:** `${{ steps.img.outputs.timestamp }}`
           files: ${{ steps.img.outputs.zip_path }}
         env:
@@ -599,12 +392,10 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '✅ <b>KERNEL BUILD SUCCESSFUL</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender (Redmi Note 7)\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n🚀 <b>Profile:</b> %s\n🦊 <b>KSU:</b> %s\n📦 <b>File:</b> <code>%s</code>\n⏱️ <b>Duration:</b> %s\n👤 <b>Triggered by:</b> %s\n━━━━━━━━━━━━━━━━━━━\n🎉 Your flashable kernel is ready!' \
+          MESSAGE=$(printf '✅ <b>KERNEL BUILD SUCCESSFUL</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender (Redmi Note 7)\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n📦 <b>File:</b> <code>%s</code>\n⏱️ <b>Duration:</b> %s\n👤 <b>Triggered by:</b> %s\n━━━━━━━━━━━━━━━━━━━\n🎉 Your flashable kernel is ready!' \
             "${{ inputs.KERNEL_SOURCE }}" \
-            "${{ env.FINAL_KERNEL_BRANCH }}" \
+            "${{ inputs.KERNEL_BRANCH }}" \
             "${{ inputs.KERNEL_DEFCONFIG }}" \
-            "${{ inputs.KERNEL_TWEAK }}" \
-            "${{ inputs.INJECT_KSU }}" \
             "${{ steps.img.outputs.zip_name }}" \
             "$DURATION_STR" \
             "${{ github.actor }}")
@@ -623,12 +414,10 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '❌ <b>KERNEL BUILD FAILED</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender (Redmi Note 7)\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n🚀 <b>Profile:</b> %s\n🦊 <b>KSU:</b> %s\n⏱️ <b>Duration:</b> %s\n👤 <b>Triggered by:</b> %s\n━━━━━━━━━━━━━━━━━━━\n💥 Something went wrong. Please check the logs below for details.' \
+          MESSAGE=$(printf '❌ <b>KERNEL BUILD FAILED</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender (Redmi Note 7)\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n⏱️ <b>Duration:</b> %s\n👤 <b>Triggered by:</b> %s\n━━━━━━━━━━━━━━━━━━━\n💥 Something went wrong. Please check the logs below for details.' \
             "${{ inputs.KERNEL_SOURCE }}" \
-            "${{ env.FINAL_KERNEL_BRANCH }}" \
+            "${{ inputs.KERNEL_BRANCH }}" \
             "${{ inputs.KERNEL_DEFCONFIG }}" \
-            "${{ inputs.KERNEL_TWEAK }}" \
-            "${{ inputs.INJECT_KSU }}" \
             "$DURATION_STR" \
             "${{ github.actor }}")
 
