@@ -19,7 +19,7 @@ on:
         type: string
 
       GH_TOKEN:
-        description: '🔑 GitHub Access Token (Required if source is "san" or "predator-strombreaker")'
+        description: '🔑 GitHub Access Token (Required if using "san" or "predator-strombreaker")'
         required: false
         type: string
 
@@ -82,7 +82,6 @@ on:
         options:
           - none
           - xxKSU
-          - KernelSU Next
 
       UBUNTU_VERSION:
         description: '🐧 Select Ubuntu Runner Version'
@@ -96,7 +95,7 @@ on:
           - ubuntu-20.04
 
       CLANG_SOURCE:
-        description: '🧰 Select Clang Toolchain Source'
+        description: '🧰 Select Clang Toolchain (Ignored if San/Predator source is selected)'
         required: true
         default: "custom"
         type: choice
@@ -105,7 +104,7 @@ on:
           - neutron
 
       CUSTOM_CLANG_URL:
-        description: '📦 Custom Clang Download URL (Required if toolchain is "custom")'
+        description: '📦 Custom Clang Download URL (Required if toolchain is set to "custom")'
         required: false
         type: string
 
@@ -160,18 +159,17 @@ jobs:
           KERNEL_SRC="${{ inputs.KERNEL_SOURCE }}"
           KERNEL_BR="${{ inputs.KERNEL_BRANCH }}"
 
+          if [[ "$KERNEL_SRC" == "san" || "$KERNEL_SRC" == "predator-strombreaker" ]]; then
+            if [[ -z "$AUTH_TOKEN" ]]; then
+              echo "❌ ERROR: A GitHub Access Token (GH_TOKEN) is required when using the '$KERNEL_SRC' source!"
+              exit 1
+            fi
+          fi
+
           if [ "$KERNEL_SRC" == "predator-strombreaker" ]; then
-            if [ -n "$AUTH_TOKEN" ]; then
-              echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@github.com/ExXyrou/predator_strombreaker_kernel.git" >> $GITHUB_ENV
-            else
-              echo "FINAL_KERNEL_URL=https://github.com/ExXyrou/predator_strombreaker_kernel.git" >> $GITHUB_ENV
-            fi
+            echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@github.com/ExXyrou/predator_strombreaker_kernel.git" >> $GITHUB_ENV
           elif [ "$KERNEL_SRC" == "san" ]; then
-            if [ -n "$AUTH_TOKEN" ]; then
-              echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@github.com/ExXyrou/san_kernel.git" >> $GITHUB_ENV
-            else
-              echo "FINAL_KERNEL_URL=https://github.com/ExXyrou/san_kernel.git" >> $GITHUB_ENV
-            fi
+            echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@github.com/ExXyrou/san_kernel.git" >> $GITHUB_ENV
           else
             if [ -z "${{ inputs.CUSTOM_KERNEL_URL }}" ]; then
               echo "❌ ERROR: 'custom' source was selected, but CUSTOM_KERNEL_URL was left empty."
@@ -204,6 +202,34 @@ jobs:
 
           echo "FINAL_KERNEL_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
           echo "✅ Successfully resolved Kernel Source URL and Branch."
+
+      - name: 🔗 Resolve Clang Toolchain Logic
+        id: resolve-clang
+        run: |
+          KERNEL_SRC="${{ inputs.KERNEL_SOURCE }}"
+          
+          if [ "$KERNEL_SRC" == "san" ]; then
+            echo "FINAL_CLANG_SOURCE=neutron" >> $GITHUB_ENV
+            echo "✅ Override: Neutron Clang automatically selected for San Kernel."
+          elif [ "$KERNEL_SRC" == "predator-strombreaker" ]; then
+            echo "FINAL_CLANG_SOURCE=custom" >> $GITHUB_ENV
+            echo "FINAL_CLANG_URL=https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/android11-release/clang-r383902.tar.gz" >> $GITHUB_ENV
+            echo "✅ Override: Custom Clang (clang-r383902) automatically selected for Predator Kernel."
+          else
+            USER_CLANG="${{ inputs.CLANG_SOURCE }}"
+            echo "FINAL_CLANG_SOURCE=$USER_CLANG" >> $GITHUB_ENV
+            
+            if [ "$USER_CLANG" == "custom" ]; then
+              if [ -z "${{ inputs.CUSTOM_CLANG_URL }}" ]; then
+                echo "❌ ERROR: You selected 'custom' Clang, but the CUSTOM_CLANG_URL is empty!"
+                exit 1
+              fi
+              echo "FINAL_CLANG_URL=${{ inputs.CUSTOM_CLANG_URL }}" >> $GITHUB_ENV
+              echo "✅ Using user-provided Custom Clang URL."
+            else
+              echo "✅ Using user-selected Neutron Clang."
+            fi
+          fi
 
       - name: 📢 Notify Telegram - Build Started
         run: |
@@ -239,9 +265,9 @@ jobs:
             echo "❌ ERROR: FAILED TO CLONE KERNEL SOURCE REPOSITORY!"
             echo "❌ ========================================================"
             echo "💡 Possible reasons:"
-            echo "   1. The 'GH_TOKEN' provided is invalid, expired, or lacks permission."
+            echo "   1. The provided 'GH_TOKEN' is invalid, expired, or lacks permissions."
             echo "   2. The repository is private and requires a token with 'repo' scope."
-            echo "   3. The specified branch name ('${{ env.FINAL_KERNEL_BRANCH }}') does not exist."
+            echo "   3. The specified branch ('${{ env.FINAL_KERNEL_BRANCH }}') does not exist."
             echo "❌ ========================================================"
             exit 1
           fi
@@ -253,26 +279,21 @@ jobs:
           echo "========================================"
 
       - name: 🦊 Inject KernelSU
-        if: ${{ inputs.INJECT_KSU != 'none' }}
+        if: ${{ inputs.INJECT_KSU == 'xxKSU' }}
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
-          if [ "${{ inputs.INJECT_KSU }}" == "xxKSU" ]; then
-            echo "Injecting xxKSU integration..."
-            curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
-          elif [ "${{ inputs.INJECT_KSU }}" == "KernelSU Next" ]; then
-            echo "Injecting KernelSU Next integration..."
-            curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
-          fi
+          echo "Injecting xxKSU integration..."
+          curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
 
       - name: 🧰 Restore Clang Toolchain Cache
         id: clang-cache
         uses: actions/cache@v4
         with:
           path: ${{ env.CLANG_DIR }}
-          key: clang-${{ inputs.CLANG_SOURCE }}-${{ hashFiles('.github/workflows/*.yml') }}
+          key: clang-${{ env.FINAL_CLANG_SOURCE }}-${{ hashFiles('.github/workflows/*.yml') }}
 
       - name: ⬇️ Download Clang Compiler (Neutron)
-        if: inputs.CLANG_SOURCE == 'neutron' && steps.clang-cache.outputs.cache-hit != 'true'
+        if: env.FINAL_CLANG_SOURCE == 'neutron' && steps.clang-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
           curl -LSs "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman" > antman
@@ -280,19 +301,15 @@ jobs:
           ./antman -S
 
       - name: ⬇️ Download Custom Clang Compiler
-        if: inputs.CLANG_SOURCE == 'custom' && steps.clang-cache.outputs.cache-hit != 'true'
+        if: env.FINAL_CLANG_SOURCE == 'custom' && steps.clang-cache.outputs.cache-hit != 'true'
         run: |
-          if [ -z "${{ inputs.CUSTOM_CLANG_URL }}" ]; then
-            echo "❌ Error: 'custom' toolchain was selected, but CUSTOM_CLANG_URL was left empty."
-            exit 1
-          fi
           mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
-          if [[ "${{ inputs.CUSTOM_CLANG_URL }}" == *.git ]]; then
-            git clone --depth=1 "${{ inputs.CUSTOM_CLANG_URL }}" .
+          if [[ "${{ env.FINAL_CLANG_URL }}" == *.git ]]; then
+            git clone --depth=1 "${{ env.FINAL_CLANG_URL }}" .
           else
-            curl -LSs "${{ inputs.CUSTOM_CLANG_URL }}" -o custom_clang.tar
-            tar -xf custom_clang.tar || unzip custom_clang.tar
-            rm -f custom_clang.tar
+            curl -LSs "${{ env.FINAL_CLANG_URL }}" -o custom_clang.archive
+            tar -xf custom_clang.archive || unzip custom_clang.archive
+            rm -f custom_clang.archive
           fi
 
       - name: 🛠️ Fix DTC & Lexer Compilation Errors
@@ -329,7 +346,7 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
 
           if [ ! -f scripts/config ]; then
-            echo "❌ Error: scripts/config was not found in the kernel source."
+            echo "❌ Error: 'scripts/config' helper was not found in the kernel source."
             exit 1
           fi
 
@@ -364,7 +381,7 @@ jobs:
           if [ "${{ inputs.KERNEL_TWEAK }}" == "none" ]; then
             echo "ℹ️ Performance profile set to 'none'. Skipping optimizations."
           else
-            echo "🔥 Applying Base Optimization & Disabling Debugging Overhead..."
+            echo "🔥 Applying Base Optimizations & Disabling Debugging Overhead..."
             disable_config CONFIG_DEBUG_INFO
             disable_config CONFIG_DEBUG_FS
             disable_config CONFIG_KASAN
@@ -420,7 +437,7 @@ jobs:
             fi
 
             if [[ "${{ inputs.KERNEL_TWEAK }}" == "eas"* ]]; then
-              echo "⚡ Applying EAS Scheduler Configuration..."
+              echo "⚡ Applying EAS Scheduler Configurations..."
               enable_config CONFIG_SCHED_WALT
               enable_config CONFIG_ENERGY_MODEL
               enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
@@ -430,7 +447,7 @@ jobs:
               set_config CONFIG_DEFAULT_GOVERNOR schedutil
 
             elif [[ "${{ inputs.KERNEL_TWEAK }}" == "hmp"* ]]; then
-              echo "⚡ Applying HMP Scheduler Configuration..."
+              echo "⚡ Applying HMP Scheduler Configurations..."
               enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
               enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
               disable_config CONFIG_SCHED_WALT
@@ -445,10 +462,7 @@ jobs:
             echo "Configuring xxKSU Build Options..."
             enable_config CONFIG_KSU
             enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
-          fi
-
-          if [ "${{ inputs.INJECT_KSU }}" == "xxKSU" ] || [ "${{ inputs.INJECT_KSU }}" == "KernelSU Next" ]; then
-            echo "Enabling CONFIG_OVERLAY_FS for KernelSU functionality..."
+            echo "Enabling CONFIG_OVERLAY_FS for KernelSU support..."
             enable_config CONFIG_OVERLAY_FS
           fi
 
@@ -476,7 +490,7 @@ jobs:
           export KBUILD_BUILD_HOST="${{ inputs.BUILD_HOST }}"
 
           echo "========================================"
-          echo "             COMPILING KERNEL           "
+          echo "            COMPILING KERNEL            "
           echo "========================================"
 
           make -j$(nproc --all) \
@@ -515,7 +529,7 @@ jobs:
           done
 
           if [ -z "$IMAGE" ]; then
-            echo "❌ Error: No compiled kernel image was found in $BOOT_DIR"
+            echo "❌ Error: No compiled kernel image found in $BOOT_DIR"
             exit 1
           fi
 
@@ -588,7 +602,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '✅ <b>KERNEL BUILD SUCCESSFUL</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender (Redmi Note 7)\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n🚀 <b>Profile:</b> %s\n🦊 <b>KSU:</b> %s\n📦 <b>File:</b> <code>%s</code>\n⏱️ <b>Duration:</b> %s\n👤 <b>Triggered by:</b> %s\n━━━━━━━━━━━━━━━━━━━\n🎉 Your kernel is ready to flash!' \
+          MESSAGE=$(printf '✅ <b>KERNEL BUILD SUCCESSFUL</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender (Redmi Note 7)\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n🚀 <b>Profile:</b> %s\n🦊 <b>KSU:</b> %s\n📦 <b>File:</b> <code>%s</code>\n⏱️ <b>Duration:</b> %s\n👤 <b>Triggered by:</b> %s\n━━━━━━━━━━━━━━━━━━━\n🎉 Your flashable kernel is ready!' \
             "${{ inputs.KERNEL_SOURCE }}" \
             "${{ env.FINAL_KERNEL_BRANCH }}" \
             "${{ inputs.KERNEL_DEFCONFIG }}" \
