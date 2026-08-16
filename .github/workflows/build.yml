@@ -25,17 +25,17 @@ on:
         type: string
 
       DEFAULT_HOSTNAME:
-        description: '💻 Kernel Hostname (e.g., redmi)'
+        description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
         required: true
         type: string
 
       BUILD_USER:
-        description: '👤 Build Username (e.g., builder)'
+        description: '👤 Build Username (e.g., xiaomi)'
         required: true
         type: string
 
       BUILD_HOST:
-        description: '🖥️ Build Hostname (e.g., github-actions)'
+        description: '🖥️ Build Hostname (e.g., redmi)'
         required: true
         type: string
 
