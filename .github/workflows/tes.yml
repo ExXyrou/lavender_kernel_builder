@@ -32,12 +32,12 @@ on:
         options:
           - custom
           - oldcam
-          - snx 1
-          - snx 2
-          - snx 3
-          - snx 4
-          - snx 5
-          - snx 6
+          - snx 1 (snx-old)
+          - snx 2 (nexus)
+          - snx 3 (nexus-v9x)
+          - snx 4 (rave)
+          - snx 5 (snx)
+          - snx 6 (v4.4-st75)
 
       CUSTOM_KERNEL_BRANCH:
         description: '🌿 Custom Branch Name (required if branch is "custom")'
@@ -164,20 +164,23 @@ jobs:
         id: resolve-url-branch
         run: |
           AUTH_TOKEN="${{ inputs.GH_TOKEN }}"
+          KERNEL_SRC="${{ inputs.KERNEL_SOURCE }}"
+          KERNEL_BR="${{ inputs.KERNEL_BRANCH }}"
 
-          if [ "${{ inputs.KERNEL_SOURCE }}" == "predator-strombreaker" ]; then
+          if [ "$KERNEL_SRC" == "predator-strombreaker" ]; then
             echo "FINAL_KERNEL_URL=https://github.com/ExXyrou/predator_strombreaker_kernel" >> $GITHUB_ENV
-          elif [ "${{ inputs.KERNEL_SOURCE }}" == "san" ]; then
+          elif [ "$KERNEL_SRC" == "san" ]; then
             echo "FINAL_KERNEL_URL=https://github.com/ExXyrou/san_kernel" >> $GITHUB_ENV
-          elif [ "${{ inputs.KERNEL_SOURCE }}" == "snx" ]; then
+          elif [ "$KERNEL_SRC" == "snx" ]; then
             if [ -z "$AUTH_TOKEN" ]; then
-              echo "❌ Error: 'snx' is a private repository. Please provide a GH_TOKEN in the workflow menu."
+              echo "❌ ERROR: 'snx' is a private repository source, but your 'GH_TOKEN' input is empty!"
+              echo "💡 Please provide a valid GitHub Personal Access Token (PAT) with repository access in the workflow input menu."
               exit 1
             fi
             echo "FINAL_KERNEL_URL=https://${AUTH_TOKEN}@github.com/ExXyrou/snx_kernel.git" >> $GITHUB_ENV
           else
             if [ -z "${{ inputs.CUSTOM_KERNEL_URL }}" ]; then
-              echo "❌ Error: 'custom' source was selected, but CUSTOM_KERNEL_URL was left empty."
+              echo "❌ ERROR: 'custom' source was selected, but CUSTOM_KERNEL_URL was left empty."
               exit 1
             fi
 
@@ -189,10 +192,10 @@ jobs:
             fi
           fi
 
-          case "${{ inputs.KERNEL_BRANCH }}" in
+          case "$KERNEL_BR" in
             "custom")
               if [ -z "${{ inputs.CUSTOM_KERNEL_BRANCH }}" ]; then
-                echo "❌ Error: 'custom' branch was selected, but CUSTOM_KERNEL_BRANCH was left empty."
+                echo "❌ ERROR: 'custom' branch was selected, but CUSTOM_KERNEL_BRANCH was left empty."
                 exit 1
               fi
               BRANCH_NAME="${{ inputs.CUSTOM_KERNEL_BRANCH }}"
@@ -200,33 +203,34 @@ jobs:
             "oldcam")
               BRANCH_NAME="oldcam"
               ;;
-            "snx 1")
+            *"snx 1"*)
               BRANCH_NAME="snx-old"
               ;;
-            "snx 2")
+            *"snx 2"*)
               BRANCH_NAME="nexus"
               ;;
-            "snx 3")
+            *"snx 3"*)
               BRANCH_NAME="nexus-v9x"
               ;;
-            "snx 4")
+            *"snx 4"*)
               BRANCH_NAME="rave"
               ;;
-            "snx 5")
+            *"snx 5"*)
               BRANCH_NAME="snx"
               ;;
-            "snx 6")
+            *"snx 6"*)
               BRANCH_NAME="v4.4-st75"
               ;;
             "none")
               BRANCH_NAME=""
               ;;
             *)
-              BRANCH_NAME="${{ inputs.KERNEL_BRANCH }}"
+              BRANCH_NAME="$KERNEL_BR"
               ;;
           esac
 
           echo "FINAL_KERNEL_BRANCH=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "✅ Resolved Source URL and Branch successfully."
 
       - name: 📢 Notify Telegram - Build Started
         run: |
@@ -247,19 +251,26 @@ jobs:
             --data-urlencode text="$MESSAGE" \
             --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
 
-      - name: 📥 Clone Kernel Source
+      - name: 📥 Clone Kernel Source & Verify Token Access
         run: |
+          echo "Testing repository access and cloning..."
+          
+          CLONE_CMD="git clone --depth=1"
           if [ -n "${{ env.FINAL_KERNEL_BRANCH }}" ]; then
-            git clone \
-              --depth=1 \
-              -b "${{ env.FINAL_KERNEL_BRANCH }}" \
-              "${{ env.FINAL_KERNEL_URL }}" \
-              "$KERNEL_DIR"
-          else
-            git clone \
-              --depth=1 \
-              "${{ env.FINAL_KERNEL_URL }}" \
-              "$KERNEL_DIR"
+            CLONE_CMD="$CLONE_CMD -b ${{ env.FINAL_KERNEL_BRANCH }}"
+          fi
+          
+          if ! $CLONE_CMD "${{ env.FINAL_KERNEL_URL }}" "$KERNEL_DIR"; then
+            echo ""
+            echo "❌ ========================================================"
+            echo "❌ ERROR: FAILED TO CLONE KERNEL SOURCE REPOSITORY!"
+            echo "❌ ========================================================"
+            echo "💡 Possible reasons:"
+            echo "   1. The 'GH_TOKEN' provided is invalid, expired, or lacks permission."
+            echo "   2. The repository is private and requires a token with 'repo' scope."
+            echo "   3. The specified branch name ('${{ env.FINAL_KERNEL_BRANCH }}') does not exist."
+            echo "❌ ========================================================"
+            exit 1
           fi
 
           echo "========================================"
@@ -488,7 +499,7 @@ jobs:
           export KCFLAGS="-Wno-address -Wno-implicit-function-declaration"
 
           echo "========================================"
-          echo "           COMPILING KERNEL...          "
+          echo "            COMPILING KERNEL...         "
           echo "========================================"
 
           make -j$(nproc --all) \
