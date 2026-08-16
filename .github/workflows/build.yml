@@ -43,7 +43,7 @@ on:
         type: string
 
       LOCALVERSION:
-        description: '🏷️ Custom Kernel Name(e.g., -MyKernel-v1.0)'
+        description: '🏷️ Custom Kernel Name (e.g., -MyKernel-v1.0)'
         required: false
         type: string
 
