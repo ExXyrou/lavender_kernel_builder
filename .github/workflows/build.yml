@@ -11,7 +11,6 @@ on:
         options:
           - custom
           - predator-strombreaker
-          - rave
           - san
           - snx
 
@@ -165,8 +164,6 @@ jobs:
 
           if [ "${{ inputs.KERNEL_SOURCE }}" == "predator-strombreaker" ]; then
             echo "FINAL_KERNEL_URL=https://github.com/ExXyrou/predator_strombreaker_kernel" >> $GITHUB_ENV
-          elif [ "${{ inputs.KERNEL_SOURCE }}" == "rave" ]; then
-            echo "FINAL_KERNEL_URL=https://github.com/ExXyrou/rave_kernel" >> $GITHUB_ENV
           elif [ "${{ inputs.KERNEL_SOURCE }}" == "san" ]; then
             echo "FINAL_KERNEL_URL=https://github.com/ExXyrou/san_kernel" >> $GITHUB_ENV
           elif [ "${{ inputs.KERNEL_SOURCE }}" == "snx" ]; then
@@ -301,16 +298,6 @@ jobs:
             sed -i \
               's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' \
               scripts/dtc/dtc-lexer.lex.c_shipped
-          fi
-
-      - name: 🛠️ Remove -Werror Flag Safely
-        working-directory: ${{ env.KERNEL_DIR }}
-        run: |
-          if [ "${{ inputs.KERNEL_SOURCE }}" == "rave" ] || [ "${{ inputs.KERNEL_SOURCE }}" == "san" ] || [ "${{ inputs.KERNEL_SOURCE }}" == "predator-strombreaker" ]; then
-            echo "🔧 Removing -Werror for kernel source '${{ inputs.KERNEL_SOURCE }}'..."
-            find . -type f -name "*Makefile*" -exec sed -i 's/-Werror[[:space:]]//g; s/-Werror$//g' {} +
-          else
-            echo "ℹ️ Skipping -Werror removal for source '${{ inputs.KERNEL_SOURCE }}'."
           fi
 
       - name: ⚙️ Generate Kernel Configuration (Defconfig)
@@ -470,22 +457,16 @@ jobs:
           export ARCH=${{ env.ARCH }}
           export SUBARCH=${{ env.SUBARCH }}
 
-          export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations -Wno-error"
-          export HOSTCXXFLAGS="-fcommon -Wno-deprecated-declarations -Wno-error"
+          export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
+          export HOSTCXXFLAGS="-fcommon -Wno-deprecated-declarations"
 
           export KBUILD_BUILD_USER="${{ inputs.BUILD_USER }}"
           export KBUILD_BUILD_HOST="${{ inputs.BUILD_HOST }}"
 
-          if [ "${{ inputs.KERNEL_SOURCE }}" == "rave" ] || [ "${{ inputs.KERNEL_SOURCE }}" == "san" ] || [ "${{ inputs.KERNEL_SOURCE }}" == "predator-strombreaker" ]; then
-            echo "🔧 Applying source-specific compilation flags..."
-            export KCFLAGS="-Wno-error -Wno-unknown-warning-option -Wno-address -Wno-implicit-function-declaration"
-          else
-            echo "🔧 Applying standard compilation flags..."
-            export KCFLAGS="-Wno-array-compare -Wno-address -Wno-implicit-function-declaration"
-          fi
+          export KCFLAGS="-Wno-address -Wno-implicit-function-declaration"
 
           echo "========================================"
-          echo "         COMPILING KERNEL...            "
+          echo "           COMPILING KERNEL...          "
           echo "========================================"
 
           make -j$(nproc --all) \
