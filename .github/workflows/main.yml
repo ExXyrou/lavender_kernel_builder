@@ -1,0 +1,418 @@
+name: 🛠️ Lavender Kernel Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      KERNEL_SOURCE:
+        description: '🔗 Custom Kernel Repository URL'
+        required: true
+        type: string
+
+      KERNEL_BRANCH:
+        description: '🌿 Custom Branch Name'
+        required: true
+        default: 'main'
+        type: string
+
+      KERNEL_DEFCONFIG:
+        description: '⚙️ Defconfig Name (e.g., lavender_defconfig)'
+        required: true
+        type: string
+
+      LOCALVERSION:
+        description: '🏷️ Custom Kernel Name (e.g., -MyKernel-v1.0)'
+        required: false
+        type: string
+
+      DEFAULT_HOSTNAME:
+        description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
+        required: true
+        type: string
+
+      BUILD_USER:
+        description: '👤 Build Username (e.g., xiaomi)'
+        required: true
+        type: string
+
+      BUILD_HOST:
+        description: '🖥️ Build Hostname (e.g., redmi)'
+        required: true
+        type: string
+
+      UBUNTU_VERSION:
+        description: '🐧 Select Ubuntu Version'
+        required: true
+        default: 'ubuntu-latest'
+        type: choice
+        options:
+          - ubuntu-latest
+          - ubuntu-24.04
+          - ubuntu-22.04
+          - ubuntu-20.04
+
+      CLANG_SOURCE:
+        description: '🧰 Select Clang Toolchain Source'
+        required: true
+        default: 'custom'
+        type: choice
+        options:
+          - custom
+          - neutron
+
+      CUSTOM_CLANG_URL:
+        description: '📦 Custom Clang Download URL (Required if toolchain is set to "custom")'
+        required: false
+        type: string
+
+env:
+  KERNEL_DIR: kernel_source
+  CLANG_DIR: clang
+  OUT_DIR: out
+  ARCH: arm64
+  SUBARCH: arm64
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  build:
+    runs-on: ${{ inputs.UBUNTU_VERSION }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: 🔄 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⏱️ Record Build Start Time
+        run: echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
+
+      - name: 📦 Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc bison libssl-dev libelf-dev \
+            build-essential python3 python3-pip curl git zip unzip wget ccache \
+            libncurses-dev rsync \
+            gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
+            gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+
+      - name: ⚡ Setup Compiler Cache (ccache)
+        run: |
+          ccache --max-size=2G
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+
+      - name: 💾 Restore Compiler Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ inputs.KERNEL_DEFCONFIG }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-${{ inputs.KERNEL_DEFCONFIG }}-
+
+      - name: 🔗 Resolve Kernel Source URL & Branch
+        id: resolve-url-branch
+        run: |
+          if [ -z "${{ inputs.KERNEL_SOURCE }}" ]; then
+            echo "❌ ERROR: KERNEL_SOURCE URL was left empty."
+            exit 1
+          fi
+          echo "FINAL_KERNEL_URL=${{ inputs.KERNEL_SOURCE }}" >> $GITHUB_ENV
+
+          if [ -z "${{ inputs.KERNEL_BRANCH }}" ]; then
+            echo "❌ ERROR: KERNEL_BRANCH was left empty."
+            exit 1
+          fi
+          echo "FINAL_KERNEL_BRANCH=${{ inputs.KERNEL_BRANCH }}" >> $GITHUB_ENV
+          echo "✅ Successfully resolved Kernel Source URL and Branch."
+
+      - name: 🔗 Resolve Clang Toolchain Logic
+        id: resolve-clang
+        run: |
+          USER_CLANG="${{ inputs.CLANG_SOURCE }}"
+          echo "FINAL_CLANG_SOURCE=$USER_CLANG" >> $GITHUB_ENV
+          
+          if [ "$USER_CLANG" == "custom" ]; then
+            if [ -z "${{ inputs.CUSTOM_CLANG_URL }}" ]; then
+              echo "❌ ERROR: You selected 'custom' Clang, but the CUSTOM_CLANG_URL is empty!"
+              exit 1
+            fi
+            echo "FINAL_CLANG_URL=${{ inputs.CUSTOM_CLANG_URL }}" >> $GITHUB_ENV
+            echo "✅ Using user-provided Custom Clang URL."
+          else
+            echo "✅ Using user-selected Neutron Clang."
+          fi
+
+      - name: 📢 Notify Telegram - Build Started
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          MESSAGE=$(printf '🛠️ <b>LAVENDER KERNEL BUILD STARTED</b>\n━━━━━━━━━━━━━━━━━━━\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n🐧 <b>Runner:</b> %s\n👤 <b>Triggered by:</b> %s' \
+            "${{ inputs.KERNEL_SOURCE }}" \
+            "${{ inputs.KERNEL_BRANCH }}" \
+            "${{ inputs.KERNEL_DEFCONFIG }}" \
+            "${{ inputs.UBUNTU_VERSION }}" \
+            "@${{ github.actor }}")
+
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
+            --data-urlencode chat_id="${{ secrets.CHAT_ID }}" \
+            --data-urlencode parse_mode="HTML" \
+            --data-urlencode text="$MESSAGE" \
+            --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
+
+      - name: 📥 Clone Kernel Source
+        run: |
+          echo "🔄 Cloning kernel source repository..."
+          rm -rf "${{ env.KERNEL_DIR }}"
+
+          if [ -n "${{ env.FINAL_KERNEL_BRANCH }}" ]; then
+            git clone --depth=1 -b "${{ env.FINAL_KERNEL_BRANCH }}" "${{ env.FINAL_KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
+          else
+            git clone --depth=1 "${{ env.FINAL_KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
+          fi
+
+          echo "========================================"
+          echo "         KERNEL SOURCE DETAILS          "
+          echo "========================================"
+          git -C "${{ env.KERNEL_DIR }}" log -1 --oneline
+          echo "========================================"
+
+      - name: 🧰 Restore Clang Toolchain Cache
+        id: clang-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CLANG_DIR }}
+          key: clang-${{ env.FINAL_CLANG_SOURCE }}-${{ hashFiles('.github/workflows/*.yml') }}
+
+      - name: ⬇️ Download Clang Compiler (Neutron)
+        if: env.FINAL_CLANG_SOURCE == 'neutron' && steps.clang-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
+          curl -LSs "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman" > antman
+          chmod +x antman
+          ./antman -S
+
+      - name: ⬇️ Download Custom Clang Compiler
+        if: env.FINAL_CLANG_SOURCE == 'custom' && steps.clang-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
+          if [[ "${{ env.FINAL_CLANG_URL }}" == *.git ]]; then
+            git clone --depth=1 "${{ env.FINAL_CLANG_URL }}" .
+          else
+            curl -LSs "${{ env.FINAL_CLANG_URL }}" -o custom_clang.archive
+            tar -xf custom_clang.archive || unzip custom_clang.archive
+            rm -f custom_clang.archive
+          fi
+
+      - name: 🛠️ Fix Resource Errors
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          if [ -f scripts/dtc/dtc-parser.tab.c ]; then
+            sed -i \
+              's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' \
+              scripts/dtc/dtc-parser.tab.c
+          fi
+
+          if [ -f scripts/dtc/dtc-lexer.lex.c_shipped ]; then
+            sed -i \
+              's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' \
+              scripts/dtc/dtc-lexer.lex.c_shipped
+          fi
+
+      - name: ⚙️ Generate Kernel Configuration (Defconfig)
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
+
+          make \
+            O=$OUT_DIR \
+            ARCH=${{ env.ARCH }} \
+            CC=clang \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            ${{ inputs.KERNEL_DEFCONFIG }}
+
+      - name: 📝 Apply Custom Configurations
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
+
+          if [ ! -f scripts/config ]; then
+            echo "❌ Error: 'scripts/config' helper was not found in the kernel source."
+            exit 1
+          fi
+
+          sed -i 's/CONFIG_DEFAULT_HOSTNAME=".*/CONFIG_DEFAULT_HOSTNAME="'"${{ inputs.DEFAULT_HOSTNAME }}"'"/' "$OUT_DIR/.config"
+          if ! grep -q "CONFIG_DEFAULT_HOSTNAME=" "$OUT_DIR/.config"; then echo "CONFIG_DEFAULT_HOSTNAME=\"${{ inputs.DEFAULT_HOSTNAME }}\"" >> "$OUT_DIR/.config"; fi
+
+          if [ -n "${{ inputs.LOCALVERSION }}" ]; then
+            sed -i 's/CONFIG_LOCALVERSION=".*/CONFIG_LOCALVERSION="'"${{ inputs.LOCALVERSION }}"'"/' "$OUT_DIR/.config"
+            if ! grep -q "CONFIG_LOCALVERSION=" "$OUT_DIR/.config"; then echo "CONFIG_LOCALVERSION=\"${{ inputs.LOCALVERSION }}\"" >> "$OUT_DIR/.config"; fi
+          fi
+
+          make \
+            O=$OUT_DIR \
+            ARCH=${{ env.ARCH }} \
+            CC=clang \
+            olddefconfig
+
+      - name: 🏗️ Build Kernel Image
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          set -o pipefail
+          
+          export KCFLAGS="-Wno-address -Wno-implicit-function-declaration"
+
+          export PATH="/usr/lib/ccache:$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
+          export ARCH=${{ env.ARCH }}
+          export SUBARCH=${{ env.SUBARCH }}
+
+          export HOSTCFLAGS="-fcommon -Wno-deprecated-declarations"
+          export HOSTCXXFLAGS="-fcommon -Wno-deprecated-declarations"
+
+          export KBUILD_BUILD_USER="${{ inputs.BUILD_USER }}"
+          export KBUILD_BUILD_HOST="${{ inputs.BUILD_HOST }}"
+
+          echo "========================================"
+          echo "            COMPILING KERNEL            "
+          echo "========================================"
+
+          make -j$(nproc --all) \
+            O=$OUT_DIR \
+            ARCH=${{ env.ARCH }} \
+            CC="ccache clang" \
+            HOSTCC="ccache clang" \
+            HOSTCXX="ccache clang++" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CONFIG_LOCALVERSION_AUTO=n \
+            KCFLAGS="$KCFLAGS" \
+            2>&1 | tee build.log
+
+      - name: 📄 Upload Build Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: ${{ env.KERNEL_DIR }}/build.log
+
+      - name: 🔍 Locate Image & Create Flashable Zip
+        id: img
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          BOOT_DIR="$PWD/$OUT_DIR/arch/arm64/boot"
+          IMAGE=""
+
+          for target in "Image.gz-dtb" "Image.gz" "Image"; do
+            FOUND=$(find "$BOOT_DIR" -name "$target" 2>/dev/null | head -n1)
+            if [ -n "$FOUND" ]; then
+              IMAGE="$FOUND"
+              break
+            fi
+          done
+
+          if [ -z "$IMAGE" ]; then
+            echo "❌ Error: No compiled kernel image found in $BOOT_DIR"
+            exit 1
+          fi
+
+          echo "image_path=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "✅ Kernel image successfully located: $IMAGE"
+
+          cd "$GITHUB_WORKSPACE"
+          rm -rf AnyKernel3
+          git clone --depth=1 https://github.com/ExXyrou/kernel_flashable AnyKernel3
+          cp "$IMAGE" AnyKernel3/
+
+          INPUT_LOCALVER="${{ inputs.LOCALVERSION }}"
+          FINAL_LOCALVER=""
+
+          if [ -n "$INPUT_LOCALVER" ]; then
+            FINAL_LOCALVER=$(echo "$INPUT_LOCALVER" | sed 's/^-//')
+          else
+            CONFIG_FILE="$GITHUB_WORKSPACE/$KERNEL_DIR/$OUT_DIR/.config"
+            if [ -f "$CONFIG_FILE" ]; then
+              FINAL_LOCALVER=$(grep "^CONFIG_LOCALVERSION=" "$CONFIG_FILE" | cut -d'"' -f2 | sed 's/^-//')
+            fi
+          fi
+
+          if [ -z "$FINAL_LOCALVER" ]; then
+            FINAL_LOCALVER="Unofficial"
+          fi
+
+          if [ -f "AnyKernel3/anykernel.sh" ]; then
+            sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' AnyKernel3/anykernel.sh
+            echo "✅ Updated kernel.string in anykernel.sh to: $FINAL_LOCALVER"
+          fi
+
+          mkdir -p AnyKernel3/modules/system/lib/modules AnyKernel3/patch AnyKernel3/ramdisk
+          touch AnyKernel3/modules/system/lib/modules/placeholder AnyKernel3/patch/placeholder AnyKernel3/ramdisk/placeholder
+
+          TIMESTAMP=$(date +'%Y%m%d')
+          ZIP_NAME="Kernel-lavender-4.4${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
+          echo "🏷️ Flashable Zip Name: $ZIP_NAME"
+
+          cd AnyKernel3
+          zip -r9 "$ZIP_NAME" * -x ".git/*"
+
+          echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$TIMESTAMP" >> "$GITHUB_OUTPUT"
+          echo "final_localver=$FINAL_LOCALVER" >> "$GITHUB_OUTPUT"
+          echo "🚀 Flashable zip created successfully: $ZIP_NAME"
+
+      - name: 🚀 Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "#${{ github.run_number }}"
+          name: "Kernel lavender 4.4${{ inputs.LOCALVERSION }}"
+          body: |
+            ### 📱 Redmi Note 7 Kernel Build
+            - **Kernel Version:** 4.4${{ inputs.LOCALVERSION }}
+            - **Build Date:** `${{ steps.img.outputs.timestamp }}`
+          files: ${{ steps.img.outputs.zip_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ✅ Notify Telegram - Build Success
+        if: success()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/#${{ github.run_id }}"
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
+          DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
+
+          MESSAGE=$(printf '✅ <b>KERNEL BUILD SUCCESSFUL</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender (Redmi Note 7)\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n📦 <b>File:</b> <code>%s</code>\n⏱️ <b>Duration:</b> %s\n👤 <b>Triggered by:</b> %s\n━━━━━━━━━━━━━━━━━━━\n🎉 Your flashable kernel is ready!' \
+            "${{ inputs.KERNEL_SOURCE }}" \
+            "${{ inputs.KERNEL_BRANCH }}" \
+            "${{ inputs.KERNEL_DEFCONFIG }}" \
+            "${{ steps.img.outputs.zip_name }}" \
+            "$DURATION_STR" \
+            "@${{ github.actor }}")
+
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
+            --data-urlencode chat_id="${{ secrets.CHAT_ID }}" \
+            --data-urlencode parse_mode="HTML" \
+            --data-urlencode text="$MESSAGE" \
+            --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"},{\"text\":\"⬇️ Download Release\",\"url\":\"$RELEASE_URL\"}]]}"
+
+      - name: ❌ Notify Telegram - Build Failed
+        if: failure()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
+          DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
+
+          MESSAGE=$(printf '❌ <b>KERNEL BUILD FAILED</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender (Redmi Note 7)\n🔗 <b>Source:</b> %s\n🌿 <b>Branch:</b> %s\n⚙️ <b>Defconfig:</b> %s\n⏱️ <b>Duration:</b> %s\n👤 <b>Triggered by:</b> %s\n━━━━━━━━━━━━━━━━━━━\n💥 Something went wrong. Please check the logs below for details.' \
+            "${{ inputs.KERNEL_SOURCE }}" \
+            "${{ inputs.KERNEL_BRANCH }}" \
+            "${{ inputs.KERNEL_DEFCONFIG }}" \
+            "$DURATION_STR" \
+            "@${{ github.actor }}")
+
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
+            --data-urlencode chat_id="${{ secrets.CHAT_ID }}" \
+            --data-urlencode parse_mode="HTML" \
+            --data-urlencode text="$MESSAGE" \
+            --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
