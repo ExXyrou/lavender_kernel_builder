@@ -39,17 +39,6 @@ on:
         required: true
         type: string
 
-      UBUNTU_VERSION:
-        description: '🐧 Select Ubuntu Version'
-        required: true
-        default: 'ubuntu-latest'
-        type: choice
-        options:
-          - ubuntu-latest
-          - ubuntu-24.04
-          - ubuntu-22.04
-          - ubuntu-20.04
-
       CLANG_SOURCE:
         description: '🧰 Select Clang Toolchain Source'
         required: true
@@ -74,7 +63,7 @@ env:
 
 jobs:
   build:
-    runs-on: ${{ inputs.UBUNTU_VERSION }}
+    runs-on: ubuntu-latest
     permissions:
       contents: write
 
@@ -149,7 +138,6 @@ jobs:
             "${{ inputs.KERNEL_SOURCE }}" \
             "${{ inputs.KERNEL_BRANCH }}" \
             "${{ inputs.KERNEL_DEFCONFIG }}" \
-            "${{ inputs.UBUNTU_VERSION }}" \
             "@${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
