@@ -385,7 +385,7 @@ jobs:
         if: success()
         run: |
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/latest"
+          RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/#${{ github.run_id }}"
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
