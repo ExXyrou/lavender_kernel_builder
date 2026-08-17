@@ -202,7 +202,7 @@ jobs:
             rm -f custom_clang.archive
           fi
 
-      - name: 🛠️ Fix DTC & Lexer Compilation Errors
+      - name: 🛠️ Fix Resource Errors
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           if [ -f scripts/dtc/dtc-parser.tab.c ]; then
@@ -215,14 +215,6 @@ jobs:
             sed -i \
               's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' \
               scripts/dtc/dtc-lexer.lex.c_shipped
-          fi
-
-      - name: 🩹 Fix Scheduler Compilation Error
-        working-directory: ${{ env.KERNEL_DIR }}
-        run: |
-          if [ -f kernel/sched/sched.h ]; then
-            sed -i 's/cpu_rq(cpu)->cfs->cumulative_runnable_avg/cpu_rq(cpu)->cfs.cumulative_runnable_avg/g' kernel/sched/sched.h
-            echo "✅ Successfully patched cumulative_runnable_avg reference."
           fi
 
       - name: ⚙️ Generate Kernel Configuration (Defconfig)
